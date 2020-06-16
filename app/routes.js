@@ -66,25 +66,26 @@ module.exports = function(app, passport) {
 	});
 
 	app.get('/users', function(req, res) {
-		const finalResponse = {users: {}, count: 0};
-		connection.query("SELECT COUNT(*) AS usersCount FROM users", function(err, rows) {
+		const finalResponse = {users: [], count: 0};
+		connection.query("SELECT COUNT(*) AS usersCount FROM users WHERE disabled = ? ", [false], function(err, rows) {
 			finalResponse.count = rows[0].usersCount;
-			console.log(rows[0].usersCount)
 		});
 
-		connection.query("SELECT id, username, first_name, last_name, message, avatar_url FROM users ORDER BY RAND() LIMIT 20", function(err, rows) {
+		connection.query("SELECT id, username, first_name, last_name, message, avatar_url FROM users WHERE disabled = ? ORDER BY RAND() LIMIT 20", [false], function(err, rows) {
 			if (err)
-				return done(err);
+				res.status(200).send({users: [], count: 0, message: 'Error'});
 			if (rows.length) {
 				finalResponse.users = rows;
+				res.status(200).send(finalResponse);
+			} else {
+				finalResponse.users = [];
 				res.status(200).send(finalResponse);
 			}
 		});
 	});
 
 	app.get('/users/validateemail', function(req, res) {
-		var email = req.query.email
-		console.log(email)
+		var email = req.query.email;
 		connection.query("SELECT * FROM users WHERE email = ? ", [email] , function(err, rows){
 			if (rows.length) {
 				res.status(200).send({ error: 'El email ya ha sido registrado' });
@@ -130,9 +131,56 @@ module.exports = function(app, passport) {
 
 	app.get('/logout', function(req, res) {
 		req.logout();
-		console.log(req.user)
 		res.status(200).send({})
 	});
+
+	app.post("/report", function (req, res) {
+		var username = req.body.username;
+		connection.query("SELECT * FROM reports WHERE username = ?", [username], function(err, rows) {
+			if (!rows.length) {
+				var insertQuery = "INSERT INTO reports ( username, created_at ) values (?,?)";
+				connection.query(insertQuery, [username, new Date()], function(err, rows) {
+					res.status(200).send({message: 'Done'});
+				});
+			}
+		});
+		
+	});
+
+	app.get("/reports", function (req, res) {
+		connection.query("SELECT t1.username, t1.message FROM users t1 INNER JOIN reports t2 ON t1.username = t2.username", function(err, rows) {
+			res.status(200).send({reports: rows});
+		});
+    });
+    
+    app.post("/report/action", function(req, res) {
+		const id = req.body.id
+		const action = req.body.action;
+
+		// Queries
+		var updateQuery = "UPDATE users SET disabled = ? WHERE username = ?";
+		var deleteQuery = "DELETE FROM reports WHERE id = ?";
+		connection.query("SELECT * FROM reports WHERE id = ?", [id], function(err, rows) {
+			if (rows.length) {
+				if (action === 'accept') {
+					const username = rows[0].username;
+					connection.query(updateQuery, [true, username], function(err, rows) {
+						if (rows.length) {
+							connection.query(deleteQuery, [id], function(err, rows) {
+								res.status(200).send({message: 'Usuario y denuncia eliminada'});
+							});
+						}
+					});
+				} 
+				if (action === "reject") {
+					connection.query(deleteQuery, [id], function(err, rows) {
+						res.status(200).send({message: 'Denuncia eliminada'});
+					});
+				}
+				
+			}
+		});
+    });
 };
 
 function isLoggedIn(req, res, next) {

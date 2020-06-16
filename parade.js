@@ -30,6 +30,10 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(flash());
 
+// require('./app/auth.js')(app, passport); 
+// require('./app/user.js')(app, passport); 
+// require('./app/report.js')(app, passport); 
+
 require('./app/routes.js')(app, passport); 
 
 app.listen(port);

@@ -44,10 +44,10 @@ module.exports = function(passport) {
                         created_at: new Date()
                     };
 
-                    var insertQuery = "INSERT INTO users ( username, password, first_name, last_name, email, avatar_url, message, created_at ) values (?,?,?,?,?,?,?,?)";
+                    var insertQuery = "INSERT INTO users ( username, password, first_name, last_name, email, avatar_url, message, disabled, created_at ) values (?,?,?,?,?,?,?,?,?)";
                     connection.query(insertQuery,[newUserMysql.username, newUserMysql.password, 
                         newUserMysql.first_name, newUserMysql.last_name, newUserMysql.email,
-                        newUserMysql.avatar_url,  newUserMysql.message, newUserMysql.created_at], function(err, rows) {
+                        newUserMysql.avatar_url,  newUserMysql.message, false, newUserMysql.created_at], function(err, rows) {
                         newUserMysql.id = rows.insertId;
 
                         return done(null, newUserMysql);
@@ -66,13 +66,14 @@ module.exports = function(passport) {
         },
         function(req, username, password, done) { 
             connection.query("SELECT * FROM users WHERE username = ?",[username], function(err, rows){
+                console.log(rows[0])
                 if (err)
                     return done(err);
                 if (!rows.length) {
                     return done(null, false, { message: 'Invalid user or password'}); 
                 }
 
-                if (!bcrypt.compareSync(password, rows[0].password))
+                if (!bcrypt.compareSync(password, rows[0].password) && !rows[0].disabled)
                     return done(null, false, { message: 'Invalid user or password'}); 
 
                 return done(null, rows[0]);
